@@ -1,21 +1,30 @@
-# NFT
-This is an example non-fungible token (NFT) smart contract.
+# example-contracts
+The Partisia Blockchain Foundation provides the following reviewed smart contracts,
+as examples of real world problems with a blockchain solution.
+The easiest way of getting started coding smart contracts is to learn from concrete examples
+showing smart contracts solving problems similar to the one you need to solve.
 
-The contract provides basic functionality to track and transfer NFTs.
+This repository contains multiple example smart contracts as a virtual cargo workspace.
+To compile all the contracts using the partisia-contract tool run:
 
-The contract works using a mint method for creating new bindings of NFTs to accounts.
+    cargo partisia-contract build --release
 
-An NFT is identified via an u128 tokenID.
-Any token owner can then `transfer` their tokens to other accounts, or `approve` other accounts
-to transfer their tokens.
-If Alice has been approved an NFT from Bob, then Alice can use `transfer_from` to transfer Bob's tokens.
+To compile a single contract change directory to the specific contract and run the same command.
+For example:
 
-Each token can only be approved to a single account.
-Any token owner can also make another account an operator of their tokens using `set_approval_for_all`.
+    cd token
+    cargo partisia-contract build --release
 
-An operator is approved to manage all NFTs owned by the owner, this includes setting approval on each token and transfer.
+The compiled wasm/zkwa and abi files are located in
 
-The contract is inspired by the ERC721 NFT contract with extensions for Metadata and Burnable\
-[https://github.com/ethereum/EIPs/blob/master/EIPS/eip-721.md](https://github.com/ethereum/EIPs/blob/master/EIPS/eip-721.md)
+    target/wasm32-unknown-unknown/release
 
-As of now this example does not follow the mpc-721 standard contract interface. You can more about this standard here:  [https://partisiablockchain.gitlab.io/documentation/smart-contracts/integration/mpc-721-nft-contract.html](https://partisiablockchain.gitlab.io/documentation/smart-contracts/integration/mpc-721-nft-contract.html)
+To run the test suite, run the following command:
+    
+    ./run-java-tests.sh
+
+To generate the code coverage report, run the following command:
+    
+    cargo partisia-contract build --coverage
+
+The coverage report will be located in java-test/target/coverage

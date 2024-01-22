@@ -20,19 +20,15 @@ struct OperatorApproval {
 }
 
 #[derive(ReadWriteState, CreateTypeSpec, PartialEq, Clone, Ord, PartialOrd, Eq)]
-struct KeyState {
-    key_type: String,
-    key_detail: String
+struct UserMetadata {
+    id: String,
+    wallet: Address
 }
 
 #[derive(ReadWriteState, CreateTypeSpec, PartialEq, Clone, Ord, PartialOrd, Eq)]
-struct UriMetadata {
-    uri_key: KeyState,
-    guarantee_record: String,
-    status: String,
-    mpg_time: String,
-    exp_time: String,
-    location: String
+struct ProductMetadata {
+    contract_address: Address,
+    id: u128,
 }
 
 /// State of the contract.
@@ -51,9 +47,11 @@ pub struct NFTContractState {
     /// Template which the uri's of the NFTs fit into.
     uri_template: String,
     /// Mapping from token_id to the URI of the token.
-    token_uri_details: SortedVecMap<u128, UriMetadata>,
+    user_list: SortedVecMap<u128, UserMetadata>,
     /// Owner of the contract. Is allowed to mint new NFTs.
     contract_owner: Address,
+    wallet_owner: SortedVecMap<Address, u128>,
+    user_product_list: SortedVecMap<u128, SortedVec<ProductMetadata>>,
     total_count: u128
 }
 
@@ -209,117 +207,11 @@ pub fn initialize(
         token_approvals: SortedVecMap::new(),
         operator_approvals: SortedVec::new(),
         uri_template,
-        token_uri_details: SortedVecMap::new(),
+        user_list: SortedVecMap::new(),
         contract_owner: ctx.sender,
+        wallet_owner: SortedVecMap::new(),
+        user_product_list: SortedVecMap::new(),
         total_count: 0
-    }
-}
-
-/// Change or reaffirm the approved address for an NFT.
-/// None indicates there is no approved address.
-/// Throws unless `ctx.sender` is the current NFT owner, or an authorized
-/// operator of the current owner.
-///
-/// ### Parameters:
-///
-/// * `ctx`: [`ContractContext`], the context for the action call.
-///
-/// * `state`: [`NFTContractState`], the current state of the contract.
-///
-/// * `approved`: [`Option<Address>`], The new approved NFT controller.
-///
-/// * `token_id`: [`u128`], The NFT to approve.
-///
-/// ### Returns
-///
-/// The new state object of type [`NFTContractState`] with an updated ledger.
-#[action(shortname = 0x05)]
-pub fn approve(
-    ctx: ContractContext,
-    mut state: NFTContractState,
-    approved: Option<Address>,
-    token_id: u128,
-) -> NFTContractState {
-    let owner = state.owner_of(token_id);
-    if ctx.sender != owner && !state.is_approved_for_all(owner, ctx.sender) {
-        panic!("MPC-721: approve caller is not owner nor authorized operator")
-    }
-    state._approve(approved, token_id);
-    state
-}
-
-/// Enable or disable approval for a third party (operator) to manage all of
-/// `ctx.sender`'s assets. Throws if `operator` == `ctx.sender`.
-///
-/// ### Parameters:
-///
-/// * `context`: [`ContractContext`], the context for the action call.
-///
-/// * `state`: [`NFTContractState`], the current state of the contract.
-///
-/// * `operator`: [`Address`], Address to add to the set of authorized operators.
-///
-/// * `approved`: [`bool`], True if the operator is approved, false to revoke approval.
-///
-/// ### Returns
-///
-/// The new state object of type [`NFTContractState`] with an updated ledger.
-#[action(shortname = 0x07)]
-pub fn set_approval_for_all(
-    ctx: ContractContext,
-    mut state: NFTContractState,
-    operator: Address,
-    approved: bool,
-) -> NFTContractState {
-    if operator == ctx.sender {
-        panic!("MPC-721: approve to caller")
-    }
-    let operator_approval = OperatorApproval {
-        owner: ctx.sender,
-        operator,
-    };
-    if approved {
-        state.operator_approvals.insert(operator_approval);
-    } else {
-        state.operator_approvals.remove(&operator_approval);
-    }
-    state
-}
-
-/// Transfer ownership of an NFT.
-///
-/// Throws unless `ctx.sender` is the current owner, an authorized
-/// operator, or the approved address for this NFT. Throws if `from` is
-/// not the current owner. Throws if `token_id` is not a valid NFT.
-///
-/// ### Parameters:
-///
-/// * `ctx`: [`ContractContext`], the context for the action call.
-///
-/// * `state`: [`NFTContractState`], the current state of the contract.
-///
-/// * `from`: [`Address`], The current owner of the NFT
-///
-/// * `to`: [`Address`], The new owner
-///
-/// * `token_id`: [`u128`], The NFT to transfer
-///
-/// ### Returns
-///
-/// The new state object of type [`NFTContractState`] with an updated ledger.
-#[action(shortname = 0x03)]
-pub fn transfer_from(
-    ctx: ContractContext,
-    mut state: NFTContractState,
-    from: Address,
-    to: Address,
-    token_id: u128,
-) -> NFTContractState {
-    if !state.is_approved_or_owner(ctx.sender, token_id) {
-        panic!("MPC-721: transfer caller is not owner nor approved")
-    } else {
-        state._transfer(from, to, token_id);
-        state
     }
 }
 
@@ -347,102 +239,75 @@ pub fn transfer_from(
 pub fn mint(
     ctx: ContractContext,
     mut state: NFTContractState,
-    to: Address,
-    key_type: String,
-    key_detail: String,
-    guarantee_record: String,
-    status: String,
-    mpg_time: String,
-    exp_time: String,
-    location: String
+    user_id: String,
+    wallet: Address,
 ) -> NFTContractState {
     if ctx.sender != state.contract_owner {
         panic!("MPC-721: mint only callable by the contract owner")
     } else {
         state.total_count += 1;
-        let token_uri = UriMetadata { 
-            uri_key: KeyState { key_type: key_type, key_detail: key_detail },
-            guarantee_record: guarantee_record,
-            status: status, 
-            mpg_time: mpg_time, 
-            exp_time: exp_time,
-            location: location
+        let token_uri = UserMetadata {
+            id: user_id,
+            wallet: wallet
         };
 
-        state.owners.insert(state.total_count, to);
-        state.token_uri_details.insert(state.total_count, token_uri);
+        state.user_list.insert(state.total_count, token_uri);
+        state.wallet_owner.insert(wallet, state.total_count);
         state
     }
 }
 
 #[action(shortname = 0x02)]
-pub fn batch_mint(
+pub fn transfer_product(
     ctx: ContractContext,
     mut state: NFTContractState,
+    from: Address,
     to: Address,
-    count: u128,
-    key_type: String,
-    key_detail: String,
-    guarantee_record: String,
-    status: String,
-    mpg_time: String,
-    exp_time: String,
-    location: String
+    product_address: Address,
+    product_id: u128
 ) -> NFTContractState {
     if ctx.sender != state.contract_owner {
         panic!("MPC-721: mint only callable by the contract owner")
     } else {
-        for i in 0..count {
-            state.total_count += 1;
-            let _key_type = key_type.clone();
-            let _guarantee_record = guarantee_record.clone();
-            let _status = status.clone();
-            let _mpg_time = mpg_time.clone();
-            let _exp_time: String = exp_time.clone();
-            let _location = location.clone();
 
-            let token_uri = UriMetadata { 
-                uri_key: KeyState { key_type: _key_type, key_detail: key_detail.clone() },
-                guarantee_record: _guarantee_record,
-                status: _status,
-                mpg_time: _mpg_time,
-                exp_time: _exp_time,
-                location: _location
-            };
+        let to_id = state.wallet_owner.get(&to).unwrap();
+        let to_product_list = state.user_product_list.get_mut(&to_id).unwrap();
 
-            state.owners.insert(state.total_count, to);
-            state.token_uri_details.insert(state.total_count, token_uri);
-        }
+        let product_uri = ProductMetadata {
+            contract_address: product_address,
+            id: product_id
+        };
+        to_product_list.insert(product_uri.clone());
+
+        let from_id = state.wallet_owner.get(&from).unwrap();
+        let from_product_list = state.user_product_list.get_mut(&from_id).unwrap();
+        from_product_list.remove(&product_uri.clone());
+
         state
     }
 }
 
-/// Destroys `token_id`.
-/// The approval is cleared when the token is burned.
-/// Requires that the `token_id` exists and `ctx.sender` is approved or owner of the token.
-///
-/// ### Parameters:
-///
-/// * `ctx`: [`ContractContext`], the context for the action call.
-///
-/// * `state`: [`NFTContractState`], the current state of the contract.
-///
-/// * `token_id`: [`u128`], The id of the NFT to be burned.
-///
-/// ### Returns
-///
-/// The new state object of type [`NFTContractState`] with an updated ledger.
-#[action(shortname = 0x08)]
-pub fn burn(ctx: ContractContext, mut state: NFTContractState, token_id: u128) -> NFTContractState {
-    if !state.is_approved_or_owner(ctx.sender, token_id) {
-        panic!("MPC-721: burn caller is not owner nor approved")
+#[action(shortname = 0x03)]
+pub fn mint_product(
+    ctx: ContractContext,
+    mut state: NFTContractState,
+    to: Address,
+    product_address: Address,
+    product_id: u128
+) -> NFTContractState {
+    if ctx.sender != state.contract_owner {
+        panic!("MPC-721: mint only callable by the contract owner")
     } else {
-        let owner = state.owner_of(token_id);
-        // Clear approvals
-        state._approve(None, token_id);
 
-        state.owners.remove(&token_id);
-        state.token_uri_details.remove(&token_id);
+        let to_id = state.wallet_owner.get(&to).unwrap();
+        let to_product_list = state.user_product_list.get_mut(&to_id).unwrap();
+
+        let product_uri = ProductMetadata {
+            contract_address: product_address,
+            id: product_id
+        };
+        to_product_list.insert(product_uri.clone());
+
         state
     }
 }
