@@ -34,7 +34,7 @@ pub struct NFTContractState {
     name: String,
     /// Abbreviated name for NFTs in this contract.
     symbol: String,
-    user_contract_accress: Address,
+    user_contract_address: Address,
     /// Mapping from token_id to the owner of the token.
     owners: SortedVecMap<u128, Address>,
     /// Mapping from token_id to the approved address who can transfer the token.
@@ -203,13 +203,13 @@ pub fn initialize(
     ctx: ContractContext,
     name: String,
     symbol: String,
-    user_contract_address_: Address,
+    user_contract_address: Address,
     uri_template: String,
 ) -> NFTContractState {
     NFTContractState {
         name,
         symbol,
-        user_contract_accress: user_contract_address_,
+        user_contract_address,
         owners: SortedVecMap::new(),
         token_approvals: SortedVecMap::new(),
         operator_approvals: SortedVec::new(),
@@ -327,7 +327,7 @@ pub fn transfer_from(
 
         let mut event_group = EventGroup::builder();
         event_group
-            .call(state.user_contract_accress, transfer_product())
+            .call(state.user_contract_address, transfer_product())
             .argument(from)
             .argument(to)
             .argument(ctx.contract_address)
@@ -382,7 +382,7 @@ pub fn mint(
 
         let mut event_group = EventGroup::builder();
         event_group
-            .call(state.user_contract_accress, mint_product())
+            .call(state.user_contract_address, mint_product())
             .argument(to)
             .argument(ctx.contract_address)
             .argument(state.total_count)
@@ -422,7 +422,7 @@ pub fn batch_mint(
 
             let mut event_group = EventGroup::builder();
             event_group
-                .call(state.user_contract_accress, mint_product())
+                .call(state.user_contract_address, mint_product())
                 .argument(to)
                 .argument(ctx.contract_address)
                 .argument(state.total_count)
