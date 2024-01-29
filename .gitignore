@@ -1,6 +1,7 @@
 # Rust / Cargo
 Cargo.lock
-target/
+target/debug/
+target/release/
 
 # Expanded rust
 expanded.rs
