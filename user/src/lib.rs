@@ -27,6 +27,7 @@ struct UserMetadata {
 
 #[derive(ReadWriteState, CreateTypeSpec, PartialEq, Clone, Ord, PartialOrd, Eq)]
 struct ProductMetadata {
+    product_id: String,
     contract_address: Address,
     id: u128,
 }
@@ -267,15 +268,17 @@ pub fn transfer_product(
     from: Address,
     to: Address,
     product_address: Address,
-    product_id: u128
+    nft_id: u128,
+    product_id: String
 ) -> NFTContractState {
     // if ctx.sender != state.contract_owner {
     //     panic!("MPC-721: mint only callable by the contract owner")
     // } else {
 
     let product_uri = ProductMetadata {
+        product_id: product_id,
         contract_address: product_address,
-        id: product_id
+        id: nft_id,
     };
 
     let to_id = state.wallet_owner.get(&to).unwrap();
@@ -303,15 +306,17 @@ pub fn mint_product(
     mut state: NFTContractState,
     to: Address,
     product_address: Address,
-    product_id: u128
+    nft_id: u128,
+    product_id: String
 ) -> NFTContractState {
     // if ctx.sender != state.contract_owner {
     //     panic!("MPC-721: mint only callable by the contract owner")
     // } else {
 
     let product_uri = ProductMetadata {
+        product_id: product_id,
         contract_address: product_address,
-        id: product_id
+        id: nft_id
     };
 
     let to_id = state.wallet_owner.get(&to).unwrap();

@@ -47,6 +47,7 @@ pub struct NFTContractState {
     token_uri_details: SortedVecMap<u128, UriMetadata>,
     /// Owner of the contract. Is allowed to mint new NFTs.
     contract_owner: Address,
+    product_id: String,
     total_count: u128
 }
 
@@ -203,12 +204,14 @@ pub fn initialize(
     ctx: ContractContext,
     name: String,
     symbol: String,
+    product_id: String,
     user_contract_address: Address,
     uri_template: String,
 ) -> NFTContractState {
     NFTContractState {
         name,
         symbol,
+        product_id,
         user_contract_address,
         owners: SortedVecMap::new(),
         token_approvals: SortedVecMap::new(),
@@ -333,6 +336,7 @@ pub fn transfer_from(
             .argument(to)
             .argument(ctx.contract_address)
             .argument(token_id)
+            .argument(state.product_id.clone())
             .done();
 
         (state, vec![event_group.build()])
@@ -359,39 +363,39 @@ pub fn transfer_from(
 /// ### Returns
 ///
 /// The new state object of type [`NFTContractState`] with an updated ledger.
-#[action(shortname = 0x01)]
-pub fn mint(
-    ctx: ContractContext,
-    mut state: NFTContractState,
-    to: Address,
-    status: String,
-    mpg_time: String,
-    exp_time: String
-) -> NFTContractState {
-    if ctx.sender != state.contract_owner {
-        panic!("MPC-721: mint only callable by the contract owner")
-    } else {
-        state.total_count += 1;
-        let token_uri = UriMetadata { 
-            status: status, 
-            mpg_time: mpg_time, 
-            exp_time: exp_time
-        };
+// #[action(shortname = 0x01)]
+// pub fn mint(
+//     ctx: ContractContext,
+//     mut state: NFTContractState,
+//     to: Address,
+//     status: String,
+//     mpg_time: String,
+//     exp_time: String
+// ) -> NFTContractState {
+//     if ctx.sender != state.contract_owner {
+//         panic!("MPC-721: mint only callable by the contract owner")
+//     } else {
+//         state.total_count += 1;
+//         let token_uri = UriMetadata { 
+//             status: status, 
+//             mpg_time: mpg_time, 
+//             exp_time: exp_time
+//         };
 
-        state.owners.insert(state.total_count, to);
-        state.token_uri_details.insert(state.total_count, token_uri);
+//         state.owners.insert(state.total_count, to);
+//         state.token_uri_details.insert(state.total_count, token_uri);
 
-        let mut event_group = EventGroup::builder();
-        event_group
-            .call(state.user_contract_address, mint_product())
-            .argument(to)
-            .argument(ctx.contract_address)
-            .argument(state.total_count)
-            .done();
+//         let mut event_group = EventGroup::builder();
+//         event_group
+//             .call(state.user_contract_address, mint_product())
+//             .argument(to)
+//             .argument(ctx.contract_address)
+//             .argument(state.total_count)
+//             .done();
         
-        state
-    }
-}
+//         state
+//     }
+// }
 
 #[action(shortname = 0x02)]
 pub fn batch_mint(
@@ -431,6 +435,7 @@ pub fn batch_mint(
                 .argument(to)
                 .argument(ctx.contract_address)
                 .argument(state.total_count)
+                .argument(state.product_id.clone())
                 .done();
         }
         (state, vec![event_group.build()])    
