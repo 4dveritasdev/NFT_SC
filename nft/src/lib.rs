@@ -410,7 +410,7 @@ pub fn batch_mint(
     if ctx.sender != state.contract_owner {
         panic!("MPC-721: mint only callable by the contract owner")
     } else {
-        let mut event_group = EventGroup::builder();
+        let from = state.total_count;
         for i in 0..count {
             state.total_count += 1;
             let _status = status.clone();
@@ -430,14 +430,19 @@ pub fn batch_mint(
             //     .with_callback(SHORTNAME_MINT_CALLBACK)
             //     .done();
 
-            event_group
-                .call(state.user_contract_address, mint_product())
-                .argument(to)
-                .argument(ctx.contract_address)
-                .argument(state.total_count)
-                .argument(state.product_id.clone())
-                .done();
         }
+
+        let mut event_group = EventGroup::builder();
+
+        event_group
+        .call(state.user_contract_address, mint_product())
+        .argument(to)
+        .argument(ctx.contract_address)
+        .argument(from)
+        .argument(count)
+        .argument(state.product_id.clone())
+        .done();
+
         (state, vec![event_group.build()])    
     }
 }
