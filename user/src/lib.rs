@@ -27,7 +27,6 @@ struct UserMetadata {
 
 #[derive(ReadWriteState, CreateTypeSpec, PartialEq, Clone, Ord, PartialOrd, Eq)]
 struct ProductMetadata {
-    product_id: String,
     contract_address: Address,
     id: u128,
 }
@@ -53,7 +52,6 @@ pub struct NFTContractState {
     contract_owner: Address,
     wallet_owner: SortedVecMap<Address, u128>,
     user_product_list: SortedVecMap<u128, SortedVec<ProductMetadata>>,
-    user_id_to_token_id: SortedVecMap<String, u128>,
     total_count: u128
 }
 
@@ -213,7 +211,6 @@ pub fn initialize(
         contract_owner: ctx.sender,
         wallet_owner: SortedVecMap::new(),
         user_product_list: SortedVecMap::new(),
-        user_id_to_token_id: SortedVecMap::new(),
         total_count: 0
     }
 }
@@ -250,13 +247,12 @@ pub fn mint(
     } else {
         state.total_count += 1;
         let token_uri = UserMetadata {
-            id: user_id.clone(),
+            id: user_id,
             wallet: wallet
         };
 
         state.user_list.insert(state.total_count, token_uri);
         state.wallet_owner.insert(wallet, state.total_count);
-        state.user_id_to_token_id.insert(user_id.clone(), state.total_count);
         state
     }
 }
@@ -268,36 +264,27 @@ pub fn transfer_product(
     from: Address,
     to: Address,
     product_address: Address,
-    nft_id: u128,
-    product_id: String
+    product_id: u128
 ) -> NFTContractState {
-    // if ctx.sender != state.contract_owner {
-    //     panic!("MPC-721: mint only callable by the contract owner")
-    // } else {
-
-    let product_uri = ProductMetadata {
-        product_id: product_id,
-        contract_address: product_address,
-        id: nft_id,
-    };
-
-    let to_id = state.wallet_owner.get(&to).unwrap();
-
-    if !state.user_product_list.contains_key(to_id) {
-        let mut user_products = SortedVec::new();
-        user_products.insert(product_uri.clone());
-        state.user_product_list.insert(*to_id, user_products);
+    if ctx.sender != state.contract_owner {
+        panic!("MPC-721: mint only callable by the contract owner")
     } else {
-        let to_product_list = state.user_product_list.get_mut(to_id).unwrap();
+
+        let to_id = state.wallet_owner.get(&to).unwrap();
+        let to_product_list = state.user_product_list.get_mut(&to_id).unwrap();
+
+        let product_uri = ProductMetadata {
+            contract_address: product_address,
+            id: product_id
+        };
         to_product_list.insert(product_uri.clone());
+
+        let from_id = state.wallet_owner.get(&from).unwrap();
+        let from_product_list = state.user_product_list.get_mut(&from_id).unwrap();
+        from_product_list.remove(&product_uri.clone());
+
+        state
     }
-
-    let from_id = state.wallet_owner.get(&from).unwrap();
-    let from_product_list = state.user_product_list.get_mut(from_id).unwrap();
-    from_product_list.remove(&product_uri.clone());
-
-    state
-    // }
 }
 
 #[action(shortname = 0x03)]
@@ -306,32 +293,21 @@ pub fn mint_product(
     mut state: NFTContractState,
     to: Address,
     product_address: Address,
-    current_nft_id: u128,
-    nft_count: u128,
-    product_id: String
+    product_id: u128
 ) -> NFTContractState {
-    // if ctx.sender != state.contract_owner {
-    //     panic!("MPC-721: mint only callable by the contract owner")
-    // } else {
-    let to_id = state.wallet_owner.get(&to).unwrap();
+    if ctx.sender != state.contract_owner {
+        panic!("MPC-721: mint only callable by the contract owner")
+    } else {
 
-    for i in 0..nft_count {
+        let to_id = state.wallet_owner.get(&to).unwrap();
+        let to_product_list = state.user_product_list.get_mut(&to_id).unwrap();
+
         let product_uri = ProductMetadata {
-            product_id: product_id.clone(),
             contract_address: product_address,
-            id: current_nft_id + i + 1
+            id: product_id
         };
+        to_product_list.insert(product_uri.clone());
 
-        if !state.user_product_list.contains_key(to_id) {
-            let mut user_products = SortedVec::new();
-            user_products.insert(product_uri.clone());
-            state.user_product_list.insert(*to_id, user_products);
-        } else {
-            let to_product_list = state.user_product_list.get_mut(to_id).unwrap();
-            to_product_list.insert(product_uri.clone());
-        }
+        state
     }
-
-    state
-    // }
 }

@@ -6,7 +6,7 @@ extern crate pbc_contract_codegen;
 
 use create_type_spec_derive::CreateTypeSpec;
 use pbc_contract_common::address::{Address, Shortname};
-use pbc_contract_common::context::{CallbackContext, ContractContext};
+use pbc_contract_common::context::ContractContext;
 use pbc_contract_common::sorted_vec_map::{SortedVec, SortedVecMap};
 use pbc_contract_common::events::EventGroup;
 use read_write_state_derive::ReadWriteState;
@@ -34,7 +34,7 @@ pub struct NFTContractState {
     name: String,
     /// Abbreviated name for NFTs in this contract.
     symbol: String,
-    user_contract_address: Address,
+    user_contract_accress: Address,
     /// Mapping from token_id to the owner of the token.
     owners: SortedVecMap<u128, Address>,
     /// Mapping from token_id to the approved address who can transfer the token.
@@ -47,7 +47,6 @@ pub struct NFTContractState {
     token_uri_details: SortedVecMap<u128, UriMetadata>,
     /// Owner of the contract. Is allowed to mint new NFTs.
     contract_owner: Address,
-    product_id: String,
     total_count: u128
 }
 
@@ -204,15 +203,13 @@ pub fn initialize(
     ctx: ContractContext,
     name: String,
     symbol: String,
-    product_id: String,
-    user_contract_address: Address,
+    user_contract_address_: Address,
     uri_template: String,
 ) -> NFTContractState {
     NFTContractState {
         name,
         symbol,
-        product_id,
-        user_contract_address,
+        user_contract_accress: user_contract_address_,
         owners: SortedVecMap::new(),
         token_approvals: SortedVecMap::new(),
         operator_approvals: SortedVec::new(),
@@ -322,24 +319,22 @@ pub fn transfer_from(
     from: Address,
     to: Address,
     token_id: u128,
-) -> (NFTContractState, Vec<EventGroup>) {
-    // if !state.is_approved_or_owner(ctx.sender, token_id) {
-    if state.contract_owner != ctx.sender {
-        panic!("MPC-721: transfer caller is not owner")
+) -> NFTContractState {
+    if !state.is_approved_or_owner(ctx.sender, token_id) {
+        panic!("MPC-721: transfer caller is not owner nor approved")
     } else {
         state._transfer(from, to, token_id);
 
         let mut event_group = EventGroup::builder();
         event_group
-            .call(state.user_contract_address, transfer_product())
+            .call(state.user_contract_accress, transfer_product())
             .argument(from)
             .argument(to)
             .argument(ctx.contract_address)
             .argument(token_id)
-            .argument(state.product_id.clone())
             .done();
 
-        (state, vec![event_group.build()])
+        state
     }
 }
 
@@ -363,39 +358,39 @@ pub fn transfer_from(
 /// ### Returns
 ///
 /// The new state object of type [`NFTContractState`] with an updated ledger.
-// #[action(shortname = 0x01)]
-// pub fn mint(
-//     ctx: ContractContext,
-//     mut state: NFTContractState,
-//     to: Address,
-//     status: String,
-//     mpg_time: String,
-//     exp_time: String
-// ) -> NFTContractState {
-//     if ctx.sender != state.contract_owner {
-//         panic!("MPC-721: mint only callable by the contract owner")
-//     } else {
-//         state.total_count += 1;
-//         let token_uri = UriMetadata { 
-//             status: status, 
-//             mpg_time: mpg_time, 
-//             exp_time: exp_time
-//         };
+#[action(shortname = 0x01)]
+pub fn mint(
+    ctx: ContractContext,
+    mut state: NFTContractState,
+    to: Address,
+    status: String,
+    mpg_time: String,
+    exp_time: String
+) -> NFTContractState {
+    if ctx.sender != state.contract_owner {
+        panic!("MPC-721: mint only callable by the contract owner")
+    } else {
+        state.total_count += 1;
+        let token_uri = UriMetadata { 
+            status: status, 
+            mpg_time: mpg_time, 
+            exp_time: exp_time
+        };
 
-//         state.owners.insert(state.total_count, to);
-//         state.token_uri_details.insert(state.total_count, token_uri);
+        state.owners.insert(state.total_count, to);
+        state.token_uri_details.insert(state.total_count, token_uri);
 
-//         let mut event_group = EventGroup::builder();
-//         event_group
-//             .call(state.user_contract_address, mint_product())
-//             .argument(to)
-//             .argument(ctx.contract_address)
-//             .argument(state.total_count)
-//             .done();
+        let mut event_group = EventGroup::builder();
+        event_group
+            .call(state.user_contract_accress, mint_product())
+            .argument(to)
+            .argument(ctx.contract_address)
+            .argument(state.total_count)
+            .done();
         
-//         state
-//     }
-// }
+        state
+    }
+}
 
 #[action(shortname = 0x02)]
 pub fn batch_mint(
@@ -406,11 +401,10 @@ pub fn batch_mint(
     status: String,
     mpg_time: String,
     exp_time: String
-) -> (NFTContractState, Vec<EventGroup>) {
+) -> NFTContractState {
     if ctx.sender != state.contract_owner {
         panic!("MPC-721: mint only callable by the contract owner")
     } else {
-        let from = state.total_count;
         for i in 0..count {
             state.total_count += 1;
             let _status = status.clone();
@@ -426,39 +420,18 @@ pub fn batch_mint(
             state.owners.insert(state.total_count, to);
             state.token_uri_details.insert(state.total_count, token_uri);
 
-            // event_group
-            //     .with_callback(SHORTNAME_MINT_CALLBACK)
-            //     .done();
-
+            let mut event_group = EventGroup::builder();
+            event_group
+                .call(state.user_contract_accress, mint_product())
+                .argument(to)
+                .argument(ctx.contract_address)
+                .argument(state.total_count)
+                .done();
         }
-
-        let mut event_group = EventGroup::builder();
-
-        event_group
-        .call(state.user_contract_address, mint_product())
-        .argument(to)
-        .argument(ctx.contract_address)
-        .argument(from)
-        .argument(count)
-        .argument(state.product_id.clone())
-        .done();
-
-        (state, vec![event_group.build()])    
+        state
     }
 }
 
-
-#[callback(shortname = 0x04)]
-pub fn mint_callback(
-    ctx: ContractContext,
-    callback_ctx: CallbackContext,
-    state: NFTContractState,
-) -> (NFTContractState, Vec<EventGroup>) {
-    if !callback_ctx.success {
-        panic!("Mint event did not succeed for start");
-    }
-    (state, vec![])
-}
 
 
 // #[action(shortname = 0x08)]
